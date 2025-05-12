@@ -25,8 +25,7 @@
 
 ## 🛎️Updates
 * **` Notice🐍🐍`**: ChangeMamba has been accepted by [IEEE TGRS](https://ieeexplore.ieee.org/document/10565926)! We'd appreciate it if you could give this repo a ⭐️**star**⭐️ and stay tuned!!
-* **` Mar. 17th, 2025`**: ChangeMamba selected as 🔥ESI Hot Paper and Highly Cited Paper🏆 for 6 consecutive months!!
-* **` Jan. 09th, 2025`**: ChangeMamba continues to be selected as 🔥ESI Hot and Highly Cited Paper🏆!!
+* **` May. 08th, 2025`**: ChangeMamba has been selected as 🔥ESI Hot Paper and Highly Cited Paper🏆 for 8 consecutive months!!
 * **` Nov. 14th, 2024`**: ChangeMamba has been selected as 🔥ESI Hot Paper🔥!!
 * **` Sept. 14th, 2024`**: ChangeMamba has been selected as 🏆ESI Highly Cited Paper🏆!!
 * **` Aug. 05th, 2024`**: ChangeMamab has been selected as [IEEE TGRS Popular Paper](https://ieeexplore.ieee.org/xpl/topAccessedArticles.jsp?punumber=36)!!
@@ -343,11 +342,11 @@ python script/infer_MambaBDA.py  --dataset 'SECOND'  \
 
 
 ### `D. Building Damage Assessment`
-| Method |  xBD (ckpt) | 
-| :---: | :---: |
-| MambaBDA-Tiny |  -- | 
-| MambaBDA-Small | -- |
-| MambaBDA-Base | -- |
+| Method |  xBD (ckpt) |  BRIGHT (ckpt) | 
+| :---: | :---: | :---: |
+| MambaBDA-Tiny |  -- |   -- | 
+| MambaBDA-Small | -- | -- |
+| MambaBDA-Base | -- | -- |
 
 ## 🤔Common Issues
 Based on peers' questions from issue, here's a quick navigate list of solutions to some common issues.
