@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from MambaCD.changedetection.datasets.make_data_loader import SemanticChangeDetectionDatset, make_data_loader
 from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.STMambaSCD import STMambaSCD
+from MambaCD.changedetection.models.ChangeMambaSCD import ChangeMambaSCD
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
@@ -28,7 +28,7 @@ class Trainer(object):
 
         self.train_data_loader = make_data_loader(args)
 
-        self.deep_model = STMambaSCD(
+        self.deep_model = ChangeMambaSCD(
             output_cd = 2, 
             output_clf = 7,
             pretrained=args.pretrained_weight_path,
@@ -230,7 +230,7 @@ def main():
     parser.add_argument('--start_iter', type=int, default=0)
     parser.add_argument('--cuda', type=bool, default=True)
     parser.add_argument('--max_iters', type=int, default=240000)
-    parser.add_argument('--model_type', type=str, default='MambaSCD')
+    parser.add_argument('--model_type', type=str, default='ChangeMambaSCD')
     parser.add_argument('--model_param_path', type=str, default='../saved_models')
 
     parser.add_argument('--resume', type=str)

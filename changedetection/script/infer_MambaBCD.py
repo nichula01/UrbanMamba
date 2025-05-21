@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from MambaCD.changedetection.datasets.make_data_loader import ChangeDetectionDatset, make_data_loader
 from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.MambaBCD import STMambaBCD
+from MambaCD.changedetection.models.ChangeMambaBCD import ChangeMambaBCD
 import imageio
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 
@@ -27,7 +27,7 @@ class Inference(object):
 
         self.evaluator = Evaluator(num_class=2)
 
-        self.deep_model = STMambaBCD(
+        self.deep_model = ChangeMambaBCD(
             pretrained=args.pretrained_weight_path,
             patch_size=config.MODEL.VSSM.PATCH_SIZE, 
             in_chans=config.MODEL.VSSM.IN_CHANS, 

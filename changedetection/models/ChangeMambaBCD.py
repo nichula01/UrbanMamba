@@ -22,9 +22,9 @@ from timm.models.layers import DropPath, trunc_normal_
 from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_count
 
 
-class STMambaBCD(nn.Module):
+class ChangeMambaBCD(nn.Module):
     def __init__(self, pretrained, **kwargs):
-        super(STMambaBCD, self).__init__()
+        super(ChangeMambaBCD, self).__init__()
         self.encoder = Backbone_VSSM(out_indices=(0, 1, 2, 3), pretrained=pretrained, **kwargs)
         
         _NORMLAYERS = dict(

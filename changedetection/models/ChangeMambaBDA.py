@@ -23,9 +23,10 @@ from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_c
 from MambaCD.changedetection.models.ChangeDecoder import ChangeDecoder
 from MambaCD.changedetection.models.SemanticDecoder import SemanticDecoder
 
-class STMambaSCD(nn.Module):
-    def __init__(self, output_cd, output_clf, pretrained,  **kwargs):
-        super(STMambaSCD, self).__init__()
+
+class ChangeMambaBDA(nn.Module):
+    def __init__(self, output_building, output_damage, pretrained, **kwargs):
+        super(ChangeMambaBDA, self).__init__()
         self.encoder = Backbone_VSSM(out_indices=(0, 1, 2, 3), pretrained=pretrained, **kwargs)
         
         _NORMLAYERS = dict(
@@ -50,9 +51,10 @@ class STMambaSCD(nn.Module):
         mlp_act_layer: nn.Module = _ACTLAYERS.get(kwargs['mlp_act_layer'].lower(), None)
 
 
-        # Remove the explicitly passed args from kwargs to avoid "got multiple values" error
+       
         clean_kwargs = {k: v for k, v in kwargs.items() if k not in ['norm_layer', 'ssm_act_layer', 'mlp_act_layer']}
-        self.decoder_bcd = ChangeDecoder(
+        
+        self.decoder_damage = ChangeDecoder(
             encoder_dims=self.encoder.dims,
             channel_first=self.encoder.channel_first,
             norm_layer=norm_layer,
@@ -61,7 +63,7 @@ class STMambaSCD(nn.Module):
             **clean_kwargs
         )
 
-        self.decoder_T1 = SemanticDecoder(
+        self.decoder_building = SemanticDecoder(
             encoder_dims=self.encoder.dims,
             channel_first=self.encoder.channel_first,
             norm_layer=norm_layer,
@@ -69,20 +71,13 @@ class STMambaSCD(nn.Module):
             mlp_act_layer=mlp_act_layer,
             **clean_kwargs
         )
+      
+        self.main_clf = nn.Conv2d(in_channels=128, out_channels=output_damage, kernel_size=1)
+        self.aux_clf = nn.Conv2d(in_channels=128, out_channels=output_building, kernel_size=1)
 
-        self.decoder_T2 = SemanticDecoder(
-            encoder_dims=self.encoder.dims,
-            channel_first=self.encoder.channel_first,
-            norm_layer=norm_layer,
-            ssm_act_layer=ssm_act_layer,
-            mlp_act_layer=mlp_act_layer,
-            **clean_kwargs
-        )
-
-
-        self.main_clf_cd = nn.Conv2d(in_channels=128, out_channels=output_cd, kernel_size=1)
-        self.aux_clf = nn.Conv2d(in_channels=128, out_channels=output_clf, kernel_size=1)
-
+    def _upsample_add(self, x, y):
+        _, _, H, W = y.size()
+        return F.interpolate(x, size=(H, W), mode='bilinear') + y
 
     def forward(self, pre_data, post_data):
         # Encoder processing
@@ -90,18 +85,13 @@ class STMambaSCD(nn.Module):
         post_features = self.encoder(post_data)
 
         # Decoder processing - passing encoder outputs to the decoder
-        output_bcd = self.decoder_bcd(pre_features, post_features)
-        output_T1 = self.decoder_T1(pre_features)
-        output_T2 = self.decoder_T2(post_features)
-
-
-        output_bcd = self.main_clf_cd(output_bcd)
-        output_bcd = F.interpolate(output_bcd, size=pre_data.size()[-2:], mode='bilinear')
-
-        output_T1 = self.aux_clf(output_T1)
-        output_T1 = F.interpolate(output_T1, size=pre_data.size()[-2:], mode='bilinear')
+        output_building = self.decoder_building(pre_features)
+        output_damage = self.decoder_damage(pre_features, post_features)
         
-        output_T2 = self.aux_clf(output_T2)
-        output_T2 = F.interpolate(output_T2, size=post_data.size()[-2:], mode='bilinear')
+        output_building = self.aux_clf(output_building)
+        output_building = F.interpolate(output_building, size=pre_data.size()[-2:], mode='bilinear')
 
-        return output_bcd, output_T1, output_T2
+        output_damage = self.main_clf(output_damage)
+        output_damage = F.interpolate(output_damage, size=post_data.size()[-2:], mode='bilinear')
+       
+        return output_building, output_damage

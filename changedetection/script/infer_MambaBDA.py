@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from MambaCD.changedetection.datasets.make_data_loader import DamageAssessmentDatset, make_data_loader
 from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.STMambaBDA import STMambaBDA
+from MambaCD.changedetection.models.ChangeMambaBDA import ChangeMambaBDA
 import imageio
 import numpy as np
 import seaborn as sns
@@ -66,7 +66,7 @@ class Trainer(object):
         self.total_evaluator_loc = Evaluator(num_class=2)
         self.total_evaluator_clf = Evaluator(num_class=5)
 
-        self.deep_model = STMambaBDA(
+        self.deep_model = ChangeMambaBDA(
             output_building=2, output_damage=5,
             pretrained=args.pretrained_weight_path,
             patch_size=config.MODEL.VSSM.PATCH_SIZE, 

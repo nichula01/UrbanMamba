@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from MambaCD.changedetection.datasets.make_data_loader import ChangeDetectionDatset, make_data_loader
 from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.MambaBCD import STMambaBCD
+from MambaCD.changedetection.models.ChangeMambaBCD import ChangeMambaBCD
 
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 
@@ -29,7 +29,7 @@ class Trainer(object):
 
         self.evaluator = Evaluator(num_class=2)
 
-        self.deep_model = STMambaBCD(
+        self.deep_model = ChangeMambaBCD(
             pretrained=args.pretrained_weight_path,
             patch_size=config.MODEL.VSSM.PATCH_SIZE, 
             in_chans=config.MODEL.VSSM.IN_CHANS, 
@@ -181,7 +181,7 @@ def main():
     parser.add_argument('--start_iter', type=int, default=0)
     parser.add_argument('--cuda', type=bool, default=True)
     parser.add_argument('--max_iters', type=int, default=240000)
-    parser.add_argument('--model_type', type=str, default='MambaBCD')
+    parser.add_argument('--model_type', type=str, default='ChangeMambaBCD')
     parser.add_argument('--model_param_path', type=str, default='../saved_models')
 
     parser.add_argument('--resume', type=str)

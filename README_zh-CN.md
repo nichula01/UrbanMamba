@@ -1,7 +1,7 @@
 <div align="center">
 <h1 align="center">ChangeMamba</h1>
 
-<h3>ChangeMamba: 利用时空状态空间模型进行遥感影像变化检测</h3>
+<h3>ChangeMamba: 基于时空状态空间模型的遥感影像变化检测</h3>
 
 
 [Hongruixuan Chen](https://scholar.google.ch/citations?user=XOk4Cf0AAAAJ&hl=zh-CN&oi=ao)<sup>1 #</sup>, [Jian Song](https://scholar.google.ch/citations?user=CgcMFJsAAAAJ&hl=zh-CN)<sup>1,2 #</sup>, [Chengxi Han](https://chengxihan.github.io/)<sup>3</sup>, [Junshi Xia](https://scholar.google.com/citations?user=n1aKdTkAAAAJ&hl=en)<sup>2</sup>, [Naoto Yokoya](https://scholar.google.co.jp/citations?user=DJ2KOn8AAAAJ&hl=en)<sup>1,2 *</sup>
@@ -10,7 +10,7 @@
 
 <sup>#</sup> 共同第一作者, <sup>*</sup> 通讯作者
 
-[![TGRS paper](https://img.shields.io/badge/TGRS-paper-00629B.svg)](https://ieeexplore.ieee.org/document/10565926)  [![arXiv paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](https://arxiv.org/pdf/2404.03425.pdf) [![Zenodo Models](https://img.shields.io/badge/Zenodo-Models-green)](https://zenodo.org/records/14037770) 
+[![TGRS paper](https://img.shields.io/badge/TGRS-paper-00629B.svg)](https://ieeexplore.ieee.org/document/10565926)  [![arXiv paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](https://arxiv.org/pdf/2404.03425.pdf) [![Zenodo Models](https://img.shields.io/badge/Zenodo-Models-green)](https://zenodo.org/records/14037770) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=ChenHongruixuan.MambaCD&left_color=%2363C7E6&right_color=%23CEE75F)
 
 [**简介**](#简介) | [**开始使用**](#%EF%B8%8F开始使用) | [**结果下载**](#%EF%B8%8F结果下载) | [**常见问题**](#引用) | [**其他**](#联系我们) | [**English Version**](https://github.com/ChenHongruixuan/MambaCD)
 
@@ -24,6 +24,7 @@
 
 ## 🛎️更新日志
 * **` 通知🐍🐍`**: ChangeMamba已经被 [IEEE TGRS](https://ieeexplore.ieee.org/document/10565926) 接收！仓库的代码已更新完毕！如果对您的研究有所帮助，请考虑给该仓库一个⭐️**star**⭐️！
+* **` 2025年05月21日`**: 更新了ChangeMamba在[BRIGHT数据集](https://github.com/ChenHongruixuan/BRIGHT)上的训练代码和[模型权重](https://zenodo.org/records/14037769)！！
 * **` 2025年05月08日`**: ChangeMamba连续八个月入选🔥ESI热点和高被引论文🏆！！
 * **` 2024年11月14日`**: ChangeMamba入选为🔥ESI 热点论文🔥！！
 * **` 2024年09月14日`**: ChangeMamba入选为🏆ESI 高被引论文🏆！！
@@ -31,7 +32,7 @@
 * **` 2024年07月19日`**: ChangeMamba入选为[ IEEE GRSS 周推荐论文](https://www.linkedin.com/feed/update/urn:li:activity:7219970529498214400/)！！
 * **` 2024年06月17日`**: ChangeMamba被 [IEEE TGRS](https://ieeexplore.ieee.org/document/10565926) 接收！
 * **` 2024年06月08日`**: 中文版文档已上线！！
-* **` 2024年04月18日`**: 我们已经发布了 ChangeMamba 模型在 BCD 任务中的所有权重。欢迎[使用](#%EF%B8%8F结果下载)！！
+* **` 2024年04月18日`**: 发布了 ChangeMamba 模型在 BCD 任务上的所有权重。欢迎[使用](#%EF%B8%8F结果下载)！！
 * **` 2024年04年05日`**: MambaBCD、MambaSCD 和 MambaBDA 的模型和训练代码已经整理并上传。欢迎使用！！
 
 ## 🔭简介
@@ -331,18 +332,18 @@ python script/infer_MambaBDA.py  --dataset 'SECOND'  \
 | MambaBCD-Base |  [[Zenodo](https://zenodo.org/uploads/14037770)][[GDrive](https://drive.google.com/file/d/14WbK9KjOIOWuea3JAgvIfyDvqACExZ0s/view?usp=drive_link)][[BaiduYun](https://pan.baidu.com/s/1xiWWjlhuJWA40cMggevdlA?pwd=4jft)] |[[Zenodo](https://zenodo.org/uploads/14037770)][[GDrive](https://drive.google.com/file/d/1uQy5tGXW20xFZvF7hIvZvsi7-JU7tg7G/view?usp=drive_link)] [[BaiduYun](https://pan.baidu.com/s/1M_u7HdIEFIEA2d3L1kfu3Q?pwd=rkgp)] | [[Zenodo](https://zenodo.org/uploads/14037770)][[GDrive](https://drive.google.com/file/d/1K7aSuT3os7LR9rUvoyVNP-x0hWKZocrn/view?usp=drive_link)][[BaiduYun](https://pan.baidu.com/s/1o6Z6ecIJ59K9eB2KqNMD9w?pwd=4mqd)] |
 
 ### `三、语义变化检测`
-| 方法 |  SECOND (ckpt) | SECOND (results) |
+| 方法 |  SECOND (ckpt) | OpenMapCD (ckpt) |
 | :---: | :---: | :---: | 
-| MambaSCD-Tiny |  [[Zenodo](https://zenodo.org/uploads/14037770)][[GDrive](https://drive.google.com/file/d/1Q2hMC320vCpp5MQA8SK54iFY7L5JF9qN/view?usp=sharing)][[BaiduYun](https://pan.baidu.com/s/1eHUjKm8Ty0w92BvOoj53Fw?pwd=6hnj)]  |
-| MambaSCD-Small | --  | 
-| MambaSCD-Base |[[Zenodo](https://zenodo.org/uploads/14037770)][[GDrive](https://drive.google.com/file/d/12aJ4sL0r02-rB5K6dixtr6FGJ3kNwlFy/view?usp=sharing)][[BaiduYun](https://pan.baidu.com/s/1GxNDC2JAEvPmOiNArLrYmw?pwd=sr3i)]  | 
+| MambaSCD-Tiny |  [[Zenodo](https://zenodo.org/uploads/14037770)][[GDrive](https://drive.google.com/file/d/1Q2hMC320vCpp5MQA8SK54iFY7L5JF9qN/view?usp=sharing)][[BaiduYun](https://pan.baidu.com/s/1eHUjKm8Ty0w92BvOoj53Fw?pwd=6hnj)]  | -- |
+| MambaSCD-Small | --  | --|
+| MambaSCD-Base |[[Zenodo](https://zenodo.org/uploads/14037770)][[GDrive](https://drive.google.com/file/d/12aJ4sL0r02-rB5K6dixtr6FGJ3kNwlFy/view?usp=sharing)][[BaiduYun](https://pan.baidu.com/s/1GxNDC2JAEvPmOiNArLrYmw?pwd=sr3i)]  | --|
 
 
 
 ### `四、建筑物损害评估`
-| 方法 |  xBD (ckpt) | xBD (results) |
+| 方法 |  xBD (ckpt) | BRIGHT (ckpt) |
 | :---: | :---: | :---: | 
-| MambaBDA-Tiny |  -- | --  | 
+| MambaBDA-Tiny |  -- |  [[Zenodo](https://zenodo.org/records/14037769)]  | 
 | MambaBDA-Small | -- | -- |
 | MambaBDA-Base | -- | -- | 
 

@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from MambaCD.changedetection.datasets.make_data_loader import SemanticChangeDetectionDatset, make_data_loader
 from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.STMambaSCD import STMambaSCD
+from MambaCD.changedetection.models.ChangeMambaSCD import ChangeMambaSCD
 
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
@@ -72,7 +72,7 @@ class Inference(object):
 
         self.evaluator = Evaluator(num_class=2)
 
-        self.deep_model = STMambaSCD(
+        self.deep_model = ChangeMambaSCD(
             output_cd = 2, 
             output_clf = 7,
             pretrained=args.pretrained_weight_path,
