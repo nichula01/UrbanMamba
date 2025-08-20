@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/home/songjian/project/MambaCD')
+sys.path.append('/home/songjian/project/UrbanMamba')
 
 import argparse
 import os
@@ -7,18 +7,18 @@ import time
 
 import numpy as np
 
-from MambaCD.changedetection.configs.config import get_config
+from UrbanMamba.semanticsegmentation.configs.config import get_config
 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from MambaCD.changedetection.datasets.make_data_loader import ChangeDetectionDatset, make_data_loader, DamageAssessmentDatset
-from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.ChangeMambaBDA import ChangeMambaBDA
+from UrbanMamba.semanticsegmentation.datasets.make_data_loader import ChangeDetectionDatset, make_data_loader, DamageAssessmentDatset
+from UrbanMamba.semanticsegmentation.utils_func.metrics import Evaluator
+from UrbanMamba.semanticsegmentation.models.ChangeMambaBDA import ChangeMambaBDA
 
-import MambaCD.changedetection.utils_func.lovasz_loss as L
+import UrbanMamba.semanticsegmentation.utils_func.lovasz_loss as L
 
 class Trainer(object):
     def __init__(self, args):
@@ -184,7 +184,7 @@ class Trainer(object):
 
 def main():
     parser = argparse.ArgumentParser(description="Training on xBD dataset")
-    parser.add_argument('--cfg', type=str, default='/home/songjian/project/MambaCD/VMamba/classification/configs/vssm1/vssm_base_224.yaml')
+    parser.add_argument('--cfg', type=str, default='/home/songjian/project/UrbanMamba/VMamba/classification/configs/vssm1/vssm_base_224.yaml')
     parser.add_argument(
         "--opts",
         help="Modify config options by adding 'KEY VALUE' pairs. ",

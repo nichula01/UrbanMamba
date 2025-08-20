@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/home/songjian/project/MambaCD')
+sys.path.append('/home/songjian/project/UrbanMamba')
 
 import argparse
 import os
@@ -7,17 +7,17 @@ import time
 
 import numpy as np
 
-from MambaCD.changedetection.configs.config import get_config
+from UrbanMamba.semanticsegmentation.configs.config import get_config
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from MambaCD.changedetection.datasets.make_data_loader import SemanticChangeDetectionDatset, make_data_loader
-from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.ChangeMambaSCD import ChangeMambaSCD
+from UrbanMamba.semanticsegmentation.datasets.make_data_loader import SemanticChangeDetectionDatset, make_data_loader
+from UrbanMamba.semanticsegmentation.utils_func.metrics import Evaluator
+from UrbanMamba.semanticsegmentation.models.ChangeMambaSCD import ChangeMambaSCD
 
-import MambaCD.changedetection.utils_func.lovasz_loss as L
-from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
+import UrbanMamba.semanticsegmentation.utils_func.lovasz_loss as L
+from UrbanMamba.semanticsegmentation.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 from tqdm import tqdm
