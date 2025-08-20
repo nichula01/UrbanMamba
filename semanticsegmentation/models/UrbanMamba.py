@@ -29,8 +29,8 @@ from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_c
 from UrbanMamba.semanticsegmentation.models.ChangeDecoder import ChangeDecoder
 from UrbanMamba.semanticsegmentation.models.SemanticDecoder import SemanticDecoder
 
-class ChangeMambaSCD(nn.Module):
-    def __init__(self, output_cd, output_clf, pretrained,  **kwargs):
+class UrbanMamba(nn.Module):
+    def __init__(self, output_clf, pretrained,  **kwargs):
         super(ChangeMambaSCD, self).__init__()
         self.encoder = Backbone_VSSM(out_indices=(0, 1, 2, 3), pretrained=pretrained, **kwargs)
         
@@ -68,9 +68,7 @@ class ChangeMambaSCD(nn.Module):
             **clean_kwargs
         )
 
-        self.main_clf_cd = nn.Conv2d(in_channels=128, out_channels=output_cd, kernel_size=1)
         self.aux_clf = nn.Conv2d(in_channels=128, out_channels=output_clf, kernel_size=1)
-
 
     def forward(self, pre_data, post_data):
         # Encoder processing
