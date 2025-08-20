@@ -1,3 +1,9 @@
+import os
+import sys
+
+main_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(main_dir)
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

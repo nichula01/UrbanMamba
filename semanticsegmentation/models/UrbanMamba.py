@@ -1,3 +1,9 @@
+import os
+import sys
+
+main_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(main_dir)
+
 import torch
 import torch.nn.functional as F
 
@@ -12,7 +18,7 @@ import copy
 from functools import partial
 from typing import Optional, Callable, Any
 from collections import OrderedDict
-from UrbanMamba.semanticsegmentation.models.ChangeDecoder import ChangeDecoder
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,11 +26,12 @@ import torch.utils.checkpoint as checkpoint
 from einops import rearrange, repeat
 from timm.models.layers import DropPath, trunc_normal_
 from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_count
+from UrbanMamba.semanticsegmentation.models.ChangeDecoder import ChangeDecoder
+from UrbanMamba.semanticsegmentation.models.SemanticDecoder import SemanticDecoder
 
-
-class ChangeMambaBCD(nn.Module):
-    def __init__(self, pretrained, **kwargs):
-        super(ChangeMambaBCD, self).__init__()
+class ChangeMambaSCD(nn.Module):
+    def __init__(self, output_cd, output_clf, pretrained,  **kwargs):
+        super(ChangeMambaSCD, self).__init__()
         self.encoder = Backbone_VSSM(out_indices=(0, 1, 2, 3), pretrained=pretrained, **kwargs)
         
         _NORMLAYERS = dict(
@@ -39,15 +46,20 @@ class ChangeMambaBCD(nn.Module):
             relu=nn.ReLU, 
             sigmoid=nn.Sigmoid,
         )
- 
+
+        self.channel_first = self.encoder.channel_first
+
+        print(self.channel_first)
 
         norm_layer: nn.Module = _NORMLAYERS.get(kwargs['norm_layer'].lower(), None)        
         ssm_act_layer: nn.Module = _ACTLAYERS.get(kwargs['ssm_act_layer'].lower(), None)
         mlp_act_layer: nn.Module = _ACTLAYERS.get(kwargs['mlp_act_layer'].lower(), None)
 
+
         # Remove the explicitly passed args from kwargs to avoid "got multiple values" error
         clean_kwargs = {k: v for k, v in kwargs.items() if k not in ['norm_layer', 'ssm_act_layer', 'mlp_act_layer']}
-        self.decoder = ChangeDecoder(
+
+        self.decoder = SemanticDecoder(
             encoder_dims=self.encoder.dims,
             channel_first=self.encoder.channel_first,
             norm_layer=norm_layer,
@@ -56,20 +68,19 @@ class ChangeMambaBCD(nn.Module):
             **clean_kwargs
         )
 
-        self.main_clf = nn.Conv2d(in_channels=128, out_channels=2, kernel_size=1)
+        self.main_clf_cd = nn.Conv2d(in_channels=128, out_channels=output_cd, kernel_size=1)
+        self.aux_clf = nn.Conv2d(in_channels=128, out_channels=output_clf, kernel_size=1)
 
-    def _upsample_add(self, x, y):
-        _, _, H, W = y.size()
-        return F.interpolate(x, size=(H, W), mode='bilinear') + y
 
     def forward(self, pre_data, post_data):
         # Encoder processing
         pre_features = self.encoder(pre_data)
-        post_features = self.encoder(post_data)
 
         # Decoder processing - passing encoder outputs to the decoder
-        output = self.decoder(pre_features, post_features)
+        output = self.decoder(pre_features)
 
-        output = self.main_clf(output)
-        output = F.interpolate(output, size=pre_data.size()[-2:], mode='bilinear')
+
+        output = self.aux_clf(output_T1)
+        output = F.interpolate(output_T1, size=pre_data.size()[-2:], mode='bilinear')
+
         return output
