@@ -1,84 +1,91 @@
-import os
-import sys
+"""
+UrbanMamba segmentation model.
 
-main_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-sys.path.append(main_dir)
+This implementation realises the dual‑branch UrbanMamba architecture
+outlined in the provided methodology.  The model
+consists of two parallel Vision Mamba encoders (one operating in the
+spatial domain and one in the wavelet domain), feature fusion at each
+encoder stage, a hierarchical decoder with Urban Context Blocks, a
+multi‑scale fusion module and a final classification head.  It
+supports training from scratch or from pretrained Vision Mamba
+weights.
+"""
 
-import torch
-import torch.nn.functional as F
+from __future__ import annotations
 
-import torch
-import torch.nn as nn
-from UrbanMamba.semanticsegmentation.models.Mamba_backbone import Backbone_VSSM
-from UrbanMamba.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
-import os
-import time
-import math
-import copy
-from functools import partial
-from typing import Optional, Callable, Any
-from collections import OrderedDict
-
+from typing import List, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
-from einops import rearrange, repeat
-from timm.models.layers import DropPath, trunc_normal_
-from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_count
-from UrbanMamba.semanticsegmentation.models.ChangeDecoder import ChangeDecoder
-from UrbanMamba.semanticsegmentation.models.SemanticDecoder import SemanticDecoder
+
+from .Mamba_backbone import Backbone_VSSM
+from .WaveletEncoder import WaveletEncoder
+from .FusionModule import FusionModule
+from .UrbanContextDecoder import UrbanContextDecoder
+from .MultiScaleFusion import MultiScaleFusion
+
 
 class UrbanMamba(nn.Module):
-    def __init__(self, output_clf, pretrained,  **kwargs):
-        super(ChangeMambaSCD, self).__init__()
-        self.encoder = Backbone_VSSM(out_indices=(0, 1, 2, 3), pretrained=pretrained, **kwargs)
-        
-        _NORMLAYERS = dict(
-            ln=nn.LayerNorm,
-            ln2d=LayerNorm2d,
-            bn=nn.BatchNorm2d,
-        )
-        
-        _ACTLAYERS = dict(
-            silu=nn.SiLU, 
-            gelu=nn.GELU, 
-            relu=nn.ReLU, 
-            sigmoid=nn.Sigmoid,
-        )
+    """Dual‑branch UrbanMamba network for semantic segmentation.
 
-        self.channel_first = self.encoder.channel_first
+    Args:
+        output_clf (int): Number of output classes.
+        pretrained (Optional[str]): Path to a Vision Mamba checkpoint to
+            initialise the spatial and wavelet encoders.  If ``None``,
+            the encoders are randomly initialised.
+        norm_layer (str): Normalisation layer for the Vision Mamba backbone.
+        **kwargs: Additional arguments forwarded to ``Backbone_VSSM``.
+    """
 
-        print(self.channel_first)
-
-        norm_layer: nn.Module = _NORMLAYERS.get(kwargs['norm_layer'].lower(), None)        
-        ssm_act_layer: nn.Module = _ACTLAYERS.get(kwargs['ssm_act_layer'].lower(), None)
-        mlp_act_layer: nn.Module = _ACTLAYERS.get(kwargs['mlp_act_layer'].lower(), None)
-
-
-        # Remove the explicitly passed args from kwargs to avoid "got multiple values" error
-        clean_kwargs = {k: v for k, v in kwargs.items() if k not in ['norm_layer', 'ssm_act_layer', 'mlp_act_layer']}
-
-        self.decoder = SemanticDecoder(
-            encoder_dims=self.encoder.dims,
-            channel_first=self.encoder.channel_first,
+    def __init__(self, output_clf: int, pretrained: Optional[str] = None,
+                 norm_layer: str = 'ln2d', **kwargs) -> None:
+        super().__init__()
+        # Spatial encoder
+        self.spatial_encoder = Backbone_VSSM(
+            out_indices=(0, 1, 2, 3),
+            pretrained=pretrained,
             norm_layer=norm_layer,
-            ssm_act_layer=ssm_act_layer,
-            mlp_act_layer=mlp_act_layer,
-            **clean_kwargs
+            **kwargs,
         )
+        # Wavelet encoder
+        base_encoder = Backbone_VSSM(
+            out_indices=(0, 1, 2, 3),
+            pretrained=pretrained,
+            norm_layer=norm_layer,
+            **kwargs,
+        )
+        self.wavelet_encoder = WaveletEncoder(base_encoder)
 
-        self.aux_clf = nn.Conv2d(in_channels=128, out_channels=output_clf, kernel_size=1)
+        # Determine per‑stage channel dimensions
+        dims: List[int] = [self.spatial_encoder.dims[i] for i in self.spatial_encoder.out_indices]
+        # Fusion modules
+        self.fusion_modules = nn.ModuleList()
+        for c in dims:
+            self.fusion_modules.append(FusionModule(
+                spatial_channels=c,
+                wavelet_channels=c * 4,
+                out_channels=c
+            ))
 
-    def forward(self, pre_data, post_data):
-        # Encoder processing
-        pre_features = self.encoder(pre_data)
+        # Decoder and multi‑scale fusion
+        self.decoder = UrbanContextDecoder(dims)
+        fusion_channels = min(dims)
+        self.multi_scale_fusion = MultiScaleFusion(dims, fusion_channels)
 
-        # Decoder processing - passing encoder outputs to the decoder
-        output = self.decoder(pre_features)
+        # Final classifier
+        self.classifier = nn.Conv2d(fusion_channels, output_clf, kernel_size=1, bias=True)
 
-
-        output = self.aux_clf(output_T1)
-        output = F.interpolate(output_T1, size=pre_data.size()[-2:], mode='bilinear')
-
-        return output
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass producing logits for each class."""
+        # Feature extraction
+        spatial_feats = self.spatial_encoder(x)
+        wavelet_feats = self.wavelet_encoder(x)
+        # Stage‑wise fusion
+        fused_feats: List[torch.Tensor] = []
+        for f_sp, f_w, fuse in zip(spatial_feats, wavelet_feats, self.fusion_modules):
+            fused_feats.append(fuse(f_sp, f_w))
+        # Decode and fuse across scales
+        decoded_feats = self.decoder(fused_feats)
+        fused = self.multi_scale_fusion(decoded_feats)
+        out = self.classifier(fused)
+        return F.interpolate(out, size=x.shape[-2:], mode='bilinear', align_corners=False)
