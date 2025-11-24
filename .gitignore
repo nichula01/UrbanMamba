@@ -1,52 +1,78 @@
-# global
-**/__pycache__
-**/_ignore
-**/.dist_test
-**/.pytest_cache
-**/*.egg-info
-**/*.TAG
-**/dist
-**/*.so
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.so
-tmp
-output
-work_dirs
-logs
-ckpts
-log
-ckpt
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-analyze/show
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+checkpoint*.pt
+checkpoint*.pth
 
-cross_selective_scan
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
 
-classification/models/pscan.py
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# we do not release code of heat series
-classification/configs/heat
-classification/models/heat
-classification/models/heat.py
-classification/models/vim.py
-classification/models/pscan.py
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
 
-detection/data
-detection/work_dirs
+# Project specific
+MambaVision-main/
+work_dirs/
+outputs/
+checkpoints/
+datasets/
+data/
+logs/*.log
+*.log
 
-segmentation/data
-segmentation/work_dirs
+# Training outputs
+wandb/
+tensorboard/
+runs/
 
-kernels/cross_scan/build
-kernels/selective_scan/build
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
 
-classification/configs/vssm1/_test_vssm_tiny_224_0221.yaml
-
-classification/models/ss2d_ablations.py
-kernels/selective_scan/1.log
-classification/dev.py
-classification/models/triton_parts.py
-classification/1.log
-kernels/selective_scan/test_selective_scan_speed.py
-kernels/selective_scan/test_selective_scan_easy.py
-kernels/selective_scan/ssmtriton.py
-test.sh
-!changemamba/**
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini

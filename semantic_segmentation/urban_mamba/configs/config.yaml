@@ -1,0 +1,43 @@
+# UrbanMamba v3 Configuration for LOVEDA Dataset
+
+model:
+  num_classes: 7  # LOVEDA: building, road, water, barren, forest, agricultural, background
+  variant: 'small'  # Options: 'tiny', 'small', 'base', 'large'
+  pretrained_spatial: null  # Path to pretrained weights for spatial encoder
+  pretrained_freq: null     # Path to pretrained weights for frequency encoder
+
+training:
+  epochs: 50
+  batch_size: 6  # Optimal batch size for training
+  lr: 0.00001  # 1e-5 EXTREME SAFETY (was 5e-5)
+  weight_decay: 0.01
+  min_lr: 0.0000001
+  warmup_epochs: 5  # Warmup for 10% of epochs
+  accumulation_steps: 2  # Gradient accumulation for smoother updates
+  use_amp: false  # FORCE FP32 - disable AMP completely
+  
+  # Loss weights
+  ce_weight: 0.7
+  lovasz_weight: 0.3
+  
+  # Data augmentation
+  crop_size: 512  # Single value for square crop
+  scale_range: [0.5, 2.0]
+  
+data:
+  # LOVEDA dataset paths
+  dataset_root: '/storage2/ChangeDetection/SemanticSegmentation/Dataset/LOVED'
+  train_list: '/storage2/ChangeDetection/SemanticSegmentation/Dataset/LOVED/train_urban.txt'
+  val_list: '/storage2/ChangeDetection/SemanticSegmentation/Dataset/LOVED/val_urban.txt'
+  num_workers: 4
+  
+checkpoint:
+  save_dir: '/storage2/ChangeDetection/SemanticSegmentation/Mambavision-NSST-fusion/semantic_segmentation/urban_mamba/models_trained'
+  save_freq: 5  # Save every N epochs
+  
+logging:
+  log_dir: '/storage2/ChangeDetection/SemanticSegmentation/Logs/MambaVision-NSST'
+  log_freq: 10  # Log every N iterations
+  
+# GPU configuration
+gpu_id: 0  # GPU to use for training

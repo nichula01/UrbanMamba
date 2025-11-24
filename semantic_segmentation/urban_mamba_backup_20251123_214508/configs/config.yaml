@@ -1,0 +1,110 @@
+# UrbanMamba Configuration File
+# High-Resolution Urban Semantic Segmentation with XLET-NSST Features
+
+# Model Configuration
+model:
+  size: 'tiny'  # Options: 'tiny', 'small', 'base', 'large'
+  num_classes: 6  # Urban classes: buildings, roads, vegetation, water, bare_land, other
+  pretrained_spatial: null  # Path to pretrained ImageNet weights for spatial encoder
+
+# Data Configuration
+data:
+  root: './data/urban_dataset'
+  image_size: [512, 512]
+  class_names:
+    - 'buildings'
+    - 'roads'
+    - 'vegetation'
+    - 'water'
+    - 'bare_land'
+    - 'other'
+  
+  # Data augmentation
+  augmentation:
+    horizontal_flip: true
+    vertical_flip: true
+    rotation: 15
+    scale_range: [0.8, 1.2]
+    color_jitter: 0.1
+
+# Loss Configuration
+loss:
+  lambda_ce: 1.0  # Weight for Cross-Entropy loss (semantic correctness)
+  lambda_lovasz: 0.75  # Weight for Lovász-Softmax loss (boundary precision)
+  ignore_index: -100
+  
+  # Optional class weights for imbalanced datasets
+  # Adjust based on your dataset statistics
+  class_weights: null  # [1.0, 2.0, 1.0, 1.5, 1.0, 1.0]
+
+# Optimizer Configuration
+optimizer:
+  type: 'adamw'
+  base_lr: 0.0001  # Base learning rate
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+
+# Scheduler Configuration
+scheduler:
+  type: 'cosine'  # Cosine annealing with warm-up
+  warmup_epochs: 5  # Linear warm-up for stable initialization
+  min_lr: 0.000001
+
+# Training Configuration
+training:
+  epochs: 300
+  batch_size: 8  # Adjust based on GPU memory
+  num_workers: 4
+  
+  # Gradient accumulation for simulating larger batch sizes
+  gradient_accumulation_steps: 2  # Effective batch size = batch_size * gradient_accumulation_steps
+  
+  # Mixed precision training for memory efficiency
+  use_amp: true
+  
+  # Validation
+  val_interval: 1  # Validate every N epochs
+  
+  # Early stopping
+  early_stopping_patience: 50
+  
+  # Approximate steps per epoch (will be calculated from dataset)
+  steps_per_epoch: 1000
+
+# NSST Feature Extraction Configuration
+nsst:
+  scales: 3
+  directions_profile: [1, 2, 3]  # Gives [2, 4, 8] directional bands = 87 total channels
+  
+  # Pre-compute NSST features (saves time during training)
+  # Set to true if you have enough disk space
+  precompute: false
+
+# Output Configuration
+output_dir: './outputs/urban_mamba'
+save_predictions: true
+save_interval: 10  # Save checkpoint every N epochs
+
+# System Configuration
+device: 'cuda'  # 'cuda' or 'cpu'
+seed: 42
+distributed: false  # Multi-GPU training
+local_rank: 0
+
+# Logging Configuration
+logging:
+  use_tensorboard: true
+  tensorboard_dir: './outputs/urban_mamba/tensorboard'
+  log_interval: 10  # Log every N batches
+  
+  # Weights & Biases (optional)
+  use_wandb: false
+  wandb_project: 'urban_mamba'
+  wandb_entity: null
+
+# Evaluation Configuration
+evaluation:
+  compute_boundary_f1: true
+  boundary_threshold: 2  # Pixels
+  save_visualizations: true
+  visualization_samples: 10

@@ -1,0 +1,61 @@
+================================================================================
+MambaVision-NSST Training Configuration
+================================================================================
+
+TRAINING PARAMETERS:
+- Epochs: 50
+- Batch Size: 6 (optimized)
+- Learning Rate: 1e-5 (stable)
+- Warmup: 5 epochs (10% of total)
+- Weight Decay: 0.01
+- AMP: DISABLED (Full FP32 precision)
+- Gradient Clipping: 0.05 (ultra-aggressive)
+- Gradient Accumulation: 2 steps
+- Normalization eps: 1e-4 (maximum stability)
+
+DATASET:
+- Dataset: LOVEDA Urban
+- Train: 1156 samples → 192 batches (batch size 6)
+- Val: 677 samples → 113 batches (batch size 6)
+
+GPU CONFIGURATION:
+- GPU: 1 (set via CUDA_VISIBLE_DEVICES=1)
+- Device: cuda:0 (visible as device 0 in script)
+
+MODEL SAVING:
+- Best models saved to: models_trained/
+- Best checkpoint: mambavision_best.pth
+- Best with mIoU: mambavision_best_miou_<score>.pth
+- Periodic: mambavision_epoch_<N>.pth (every 10 epochs)
+
+SCRIPTS:
+- Training script: train_mambavision.py
+- Launch script: launch_extreme_stability.sh
+- Monitor script: monitor_training.sh
+
+USAGE:
+1. Start training:
+   tmux new-session -d -s dineth "./launch_extreme_stability.sh"
+
+2. Monitor training:
+   tmux attach -t dineth
+   (Ctrl+B then D to detach)
+
+3. Check progress:
+   tmux capture-pane -t dineth -p | tail -20
+
+4. Stop training:
+   tmux kill-session -t dineth
+
+LOGS:
+- Location: /storage2/ChangeDetection/SemanticSegmentation/Logs/MambaVision-NSST/
+- Format: mambavision_training_<timestamp>.log
+
+STABILITY FIXES APPLIED:
+1. Full FP32 (no AMP) - prevents float16 overflow with NSST frequency data
+2. Ultra-low LR (1e-5) - prevents gradient explosions
+3. Aggressive gradient clipping (0.05) - catches extreme gradients
+4. Large normalization epsilon (1e-4) - prevents division by zero
+5. Gradient accumulation (2 steps) - smoother, more stable updates
+
+================================================================================
