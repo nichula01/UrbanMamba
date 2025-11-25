@@ -15,10 +15,10 @@ class MambaFusionBlock(nn.Module):
     This block takes two feature maps (spatial and frequency) with the same channel dimension
     and produces a fused output by:
     1. Concatenating the two feature maps along the channel dimension
-    2. Projecting down to original channel dimension
-    3. Applying Mamba mixer for selective state-based fusion
-    4. Layer normalization for stability
-    
+    2. Learning an adaptive gate to blend the two branches
+    3. Refining the gated base feature with a Mamba (or convolutional) mixer
+    4. Residually adding the refinement back to the gated base
+
     If mamba-ssm is not available, falls back to convolutional fusion.
     
     Args:
@@ -37,13 +37,15 @@ class MambaFusionBlock(nn.Module):
     ):
         super().__init__()
         self.channels = channels
+        self.gate_conv = nn.Conv2d(2 * channels, channels, kernel_size=1, bias=True)
+        self.alpha = nn.Parameter(torch.tensor(1.0))
         
         # Try to use Mamba mixer (requires mamba-ssm)
         try:
             from mamba_ssm import Mamba
             
-            # 1. Projection: 2*C → C (compress concatenated features)
-            self.proj = nn.Linear(channels * 2, channels)
+            # Projection inside the sequence domain (C → C)
+            self.proj = nn.Linear(channels, channels)
             
             # 2. Mamba Mixer: Selective state-space model
             # This is the key - it learns to selectively integrate spatial vs frequency
@@ -58,13 +60,14 @@ class MambaFusionBlock(nn.Module):
             self.norm = nn.LayerNorm(channels)
             
             self.use_mamba = True
+            self.conv_fusion = None
             print(f"✓ MambaFusionBlock initialized with Mamba mixer (C={channels})")
             
         except ImportError:
             # Fallback: Convolutional fusion
             print(f"⚠ mamba-ssm not available, using convolutional fusion fallback")
             
-            self.proj = nn.Conv2d(channels * 2, channels, kernel_size=1)
+            self.proj = None
             self.conv_fusion = nn.Sequential(
                 nn.Conv2d(channels, channels, kernel_size=3, padding=1, groups=channels),
                 nn.BatchNorm2d(channels),
@@ -89,39 +92,34 @@ class MambaFusionBlock(nn.Module):
         assert freq_feat.shape == spatial_feat.shape, \
             f"Spatial and frequency features must have same shape. Got {spatial_feat.shape} and {freq_feat.shape}"
         
+        # Adaptive gating between spatial and frequency branches
+        concat_feat = torch.cat([spatial_feat, freq_feat], dim=1)
+        gate = torch.sigmoid(self.gate_conv(concat_feat))
+        base = spatial_feat * (1.0 - gate) + freq_feat * gate
+        
         if self.use_mamba:
             # Mamba-based fusion
-            # 1. Concatenate: [B, 2C, H, W]
-            concat_feat = torch.cat([spatial_feat, freq_feat], dim=1)
+            # 1. Reshape gated base to sequence: [B, H*W, C]
+            seq = base.flatten(2).transpose(1, 2)
             
-            # 2. Reshape to sequence: [B, H*W, 2C]
-            concat_seq = concat_feat.flatten(2).transpose(1, 2)
+            # 2. Project (C → C) for stability
+            proj_seq = self.proj(seq)
             
-            # 3. Project down: [B, H*W, C]
-            proj_seq = self.proj(concat_seq)
-            
-            # 4. Apply Mamba mixer: [B, H*W, C]
+            # 3. Apply Mamba mixer and normalize
             mixed_seq = self.mixer(proj_seq)
-            
-            # 5. Normalize: [B, H*W, C]
             normed_seq = self.norm(mixed_seq)
             
-            # 6. Reshape back: [B, C, H, W]
-            fused = normed_seq.transpose(1, 2).reshape(B, C, H, W)
+            # 4. Reshape back to feature map: [B, C, H, W]
+            delta = normed_seq.transpose(1, 2).reshape(B, C, H, W)
             
         else:
-            # Convolutional fallback
-            # 1. Concatenate: [B, 2C, H, W]
-            concat_feat = torch.cat([spatial_feat, freq_feat], dim=1)
-            
-            # 2. Project down: [B, C, H, W]
-            proj_feat = self.proj(concat_feat)
-            
-            # 3. Convolutional fusion: [B, C, H, W]
-            fused = self.conv_fusion(proj_feat)
+            # Convolutional fallback refinement on the gated base
+            delta = self.conv_fusion(base)
         
-        # Residual connection with spatial features (primary branch)
-        fused = fused + spatial_feat
+        if self.alpha.ndim == 0:
+            fused = base + self.alpha * delta
+        else:
+            fused = base + self.alpha.view(1, -1, 1, 1) * delta
         
         return fused
 
