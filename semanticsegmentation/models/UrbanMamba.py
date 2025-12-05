@@ -23,6 +23,7 @@ from .NSSTEncoder import NSSTEncoder
 from .FusionModule import FusionModule
 from .UrbanContextDecoder import UrbanContextDecoder
 from .MultiScaleFusion import MultiScaleFusion
+from .freq.nsst_cnn_encoder import NSSTFreqEncoderCNN
 
 
 class UrbanMamba(nn.Module):
@@ -38,8 +39,10 @@ class UrbanMamba(nn.Module):
     """
 
     def __init__(self, output_clf: int, pretrained: Optional[str] = None,
-                 norm_layer: str = 'ln2d', use_nsst: bool = True, **kwargs) -> None:
+                 norm_layer: str = 'ln2d', use_nsst: bool = True,
+                 freq_encoder_type: str = "cnn", **kwargs) -> None:
         super().__init__()
+        self.freq_encoder_type = freq_encoder_type
         # Spatial encoder
         self.spatial_encoder = Backbone_VSSM(
             out_indices=(0, 1, 2, 3),
@@ -47,23 +50,39 @@ class UrbanMamba(nn.Module):
             norm_layer=norm_layer,
             **kwargs,
         )
-        # Wavelet encoder
-        base_encoder = Backbone_VSSM(
-            out_indices=(0, 1, 2, 3),
-            pretrained=pretrained,
-            norm_layer=norm_layer,
-            **kwargs,
-        )
-        self.wavelet_encoder = NSSTEncoder(base_encoder, use_nsst=use_nsst)
+        # Frequency encoder
+        if freq_encoder_type.lower() == "vmamba":
+            base_encoder = Backbone_VSSM(
+                out_indices=(0, 1, 2, 3),
+                pretrained=pretrained,
+                norm_layer=norm_layer,
+                **kwargs,
+            )
+            self.freq_encoder = NSSTEncoder(base_encoder, use_nsst=use_nsst)
+        elif freq_encoder_type.lower() == "cnn":
+            # Channels per stage should align with spatial encoder dims * 4 (previous fusion expectation)
+            dummy_dims: List[int] = [self.spatial_encoder.dims[i] for i in self.spatial_encoder.out_indices]
+            freq_out_channels = tuple([c * 4 for c in dummy_dims])
+            self.freq_encoder = NSSTFreqEncoderCNN(
+                directions_per_scale=(4, 4, 8),
+                in_channels=17,
+                out_channels_list=freq_out_channels,
+            )
+        else:
+            raise ValueError(f"Unknown frequency encoder type: {freq_encoder_type}")
 
         # Determine per‑stage channel dimensions
         dims: List[int] = [self.spatial_encoder.dims[i] for i in self.spatial_encoder.out_indices]
+        if freq_encoder_type.lower() == "cnn":
+            freq_channels = [c * 4 for c in dims]
+        else:
+            freq_channels = [c * 4 for c in dims]
         # Fusion modules
         self.fusion_modules = nn.ModuleList()
-        for c in dims:
+        for c, fc in zip(dims, freq_channels):
             self.fusion_modules.append(FusionModule(
                 spatial_channels=c,
-                wavelet_channels=c * 4,
+                wavelet_channels=fc,
                 out_channels=c
             ))
 
@@ -79,7 +98,7 @@ class UrbanMamba(nn.Module):
         """Forward pass producing logits for each class."""
         # Feature extraction
         spatial_feats = self.spatial_encoder(x)
-        wavelet_feats = self.wavelet_encoder(x)
+        wavelet_feats = self.freq_encoder(x)
         # Stage‑wise fusion
         fused_feats: List[torch.Tensor] = []
         for f_sp, f_w, fuse in zip(spatial_feats, wavelet_feats, self.fusion_modules):

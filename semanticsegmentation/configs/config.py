@@ -100,6 +100,7 @@ _C.MODEL.VSSM.GMLP = False
 # -----------------------------------------------------------------------------
 _C.FREQ = CN()
 _C.FREQ.USE_NSST = True
+_C.FREQ.ENCODER_TYPE = "cnn"  # options: "cnn", "vmamba"
 
 # -----------------------------------------------------------------------------
 # Training settings
