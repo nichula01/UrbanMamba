@@ -173,6 +173,21 @@ _C.AUG.MIXUP_PROB = 1.0
 _C.AUG.MIXUP_SWITCH_PROB = 0.5
 # How to apply mixup/cutmix params. Per "batch", "pair", or "elem"
 _C.AUG.MIXUP_MODE = 'batch'
+# Segmentation-specific toggles (kept disabled by default to preserve prior behavior)
+_C.AUG.RANDOM_RESIZED_CROP = False
+_C.AUG.SCALE_RANGE = (0.5, 2.0)
+_C.AUG.ASPECT_RANGE = (0.75, 1.3333333333)
+_C.AUG.CLASS_BALANCED_CROP = False
+_C.AUG.SMALL_ANGLE_ROT = False
+_C.AUG.MAX_ROTATION_DEG = 15.0
+_C.AUG.LOVEDA_COLOR_JITTER = False
+_C.AUG.COLOR_JITTER_BCS = 0.3
+_C.AUG.COLOR_JITTER_HUE = 0.05
+_C.AUG.GAMMA_JITTER = False
+_C.AUG.GAMMA_RANGE = (0.8, 1.2)
+_C.AUG.GAUSSIAN_NOISE_STD = 0.0
+_C.AUG.GAUSSIAN_NOISE_STD_MAX = 5.0
+_C.AUG.GAUSSIAN_BLUR_PROB = 0.0
 
 # -----------------------------------------------------------------------------
 # Testing settings
@@ -183,6 +198,12 @@ _C.TEST.CROP = True
 # Whether to use SequentialSampler as validation sampler
 _C.TEST.SEQUENTIAL = False
 _C.TEST.SHUFFLE = False
+
+# -----------------------------------------------------------------------------
+# Dataloader
+# -----------------------------------------------------------------------------
+_C.DATALOADER = CN()
+_C.DATALOADER.DOMAIN_BALANCED_SAMPLER = False
 
 # -----------------------------------------------------------------------------
 # Misc

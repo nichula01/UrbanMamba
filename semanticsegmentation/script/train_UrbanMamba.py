@@ -16,7 +16,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from UrbanMamba.semanticsegmentation.datasets.make_data_loader import SemanticDatset_LOVEDA, make_data_loader
+from UrbanMamba.semanticsegmentation.datasets.make_data_loader import SemanticDatasetLOVEDA, make_data_loader
 from UrbanMamba.semanticsegmentation.utils_func.metrics import Evaluator
 from UrbanMamba.semanticsegmentation.models.UrbanMamba import UrbanMamba
 import UrbanMamba.semanticsegmentation.utils_func.lovasz_loss as L
@@ -29,7 +29,7 @@ class Trainer(object):
         self.args = args
         config = get_config(args)
 
-        self.train_data_loader = make_data_loader(args)
+        self.train_data_loader = make_data_loader(args, config)
 
         self.deep_model = UrbanMamba(
             output_clf = args.num_classes,
@@ -103,7 +103,8 @@ class Trainer(object):
         train_enumerator = enumerate(self.train_data_loader)
         for _ in tqdm(range(elem_num)):
             itera, data = train_enumerator.__next__()
-            imgs, labels, _ = data
+            imgs = data['image']
+            labels = data['label']
 
             imgs = imgs.cuda()
             labels = labels.cuda().long()
@@ -140,7 +141,7 @@ class Trainer(object):
 
     def validation(self):
         print('---------starting evaluation-----------')
-        dataset = SemanticDatset_LOVEDA(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
+        dataset = SemanticDatasetLOVEDA(self.args.test_dataset_path, self.args.test_data_name_list, 256, mode='test', cfg=None)
         val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
 
@@ -150,7 +151,8 @@ class Trainer(object):
         labels_all = []
         with torch.no_grad():
             for itera, data in enumerate(val_data_loader):
-                imgs, labels, _ = data
+                imgs = data['image']
+                labels = data['label']
 
                 imgs = imgs.cuda()
                 labels = labels.cuda().long()
