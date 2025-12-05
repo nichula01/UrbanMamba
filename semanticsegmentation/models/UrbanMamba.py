@@ -40,9 +40,10 @@ class UrbanMamba(nn.Module):
 
     def __init__(self, output_clf: int, pretrained: Optional[str] = None,
                  norm_layer: str = 'ln2d', use_nsst: bool = True,
-                 freq_encoder_type: str = "cnn", **kwargs) -> None:
+                 freq_encoder_type: str = "cnn", cfg=None, **kwargs) -> None:
         super().__init__()
         self.freq_encoder_type = freq_encoder_type
+        self.cfg = cfg
         # Spatial encoder
         self.spatial_encoder = Backbone_VSSM(
             out_indices=(0, 1, 2, 3),
@@ -79,21 +80,31 @@ class UrbanMamba(nn.Module):
             freq_channels = [c * 4 for c in dims]
         # Fusion modules
         self.fusion_modules = nn.ModuleList()
+        use_branch_gating = False
+        if cfg is not None and hasattr(cfg, "FUSION"):
+            use_branch_gating = getattr(cfg.FUSION, "USE_BRANCH_GATING", False)
+            gate_reduction = getattr(cfg.FUSION, "GATE_REDUCTION", 4)
+        else:
+            gate_reduction = 4
         for c, fc in zip(dims, freq_channels):
             self.fusion_modules.append(FusionModule(
                 spatial_channels=c,
                 wavelet_channels=fc,
                 out_channels=c,
-                use_branch_gating=getattr(kwargs.get("cfg", None) or type("cfg", (), {"FUSION": type("f", (), {})})(), "FUSION", getattr(type("f", (), {})(), "USE_BRANCH_GATING", False)),
+                use_branch_gating=use_branch_gating,
+                gate_reduction=gate_reduction,
             ))
 
         # Decoder and multi‑scale fusion
         self.decoder = UrbanContextDecoder(dims)
         fusion_channels = min(dims)
+        use_scale_weights = False
+        if cfg is not None and hasattr(cfg, "FUSION"):
+            use_scale_weights = getattr(cfg.FUSION, "USE_LEARNABLE_SCALE_WEIGHTS", False)
         self.multi_scale_fusion = MultiScaleFusion(
             dims,
             fusion_channels,
-            use_learnable_scale_weights=getattr(kwargs.get("cfg", None) or type("cfg", (), {"FUSION": type("f", (), {})})(), "FUSION", getattr(type("f", (), {})(), "USE_LEARNABLE_SCALE_WEIGHTS", False)),
+            use_learnable_scale_weights=use_scale_weights,
         )
 
         # Final classifier

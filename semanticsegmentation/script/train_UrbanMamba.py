@@ -6,6 +6,8 @@ sys.path.append(main_dir)
 
 import argparse
 import time
+import math
+import copy
 
 import numpy as np
 
@@ -14,12 +16,13 @@ from UrbanMamba.semanticsegmentation.configs.config import get_config
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+import torch.nn.utils as nn_utils
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from UrbanMamba.semanticsegmentation.datasets.make_data_loader import SemanticDatasetLOVEDA, make_data_loader
 from UrbanMamba.semanticsegmentation.models.UrbanMamba import UrbanMamba
 import UrbanMamba.semanticsegmentation.utils_func.lovasz_loss as L
-from torch.optim.lr_scheduler import StepLR
 from UrbanMamba.semanticsegmentation.utils_func.eval import Evaluator
 from UrbanMamba.semanticsegmentation.utils_func.postprocess import (
     tta_logits,
@@ -27,6 +30,80 @@ from UrbanMamba.semanticsegmentation.utils_func.postprocess import (
     crf_refine,
 )
 from UrbanMamba.semanticsegmentation.datasets import imutils
+
+
+class ModelEMA(object):
+    """Exponential moving average of model parameters for evaluation stability."""
+
+    def __init__(self, model, decay=0.999):
+        self.ema = copy.deepcopy(model)
+        self.ema.eval()
+        self.decay = decay
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
+
+    @torch.no_grad()
+    def update(self, model):
+        d = self.decay
+        msd = model.state_dict()
+        esd = self.ema.state_dict()
+        for k in esd.keys():
+            if k in msd:
+                esd[k].data.mul_(d).add_(msd[k].data, alpha=1.0 - d)
+
+
+def build_optimizer(cfg, model):
+    base_lr = cfg.TRAIN.BASE_LR
+    wd = cfg.TRAIN.WEIGHT_DECAY
+    bb_mult = cfg.TRAIN.BACKBONE_LR_MULT
+
+    backbone_params = []
+    other_params = []
+
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        if "spatial_encoder" in name or "backbone" in name:
+            backbone_params.append(param)
+        else:
+            other_params.append(param)
+
+    param_groups = [
+        {"params": backbone_params, "lr": base_lr * bb_mult, "weight_decay": wd},
+        {"params": other_params, "lr": base_lr, "weight_decay": wd},
+    ]
+    optimizer = optim.AdamW(param_groups, lr=base_lr, betas=(0.9, 0.999))
+    return optimizer
+
+
+def build_scheduler(cfg, optimizer, num_steps_per_epoch):
+    total_epochs = cfg.TRAIN.EPOCHS
+    warmup_epochs = cfg.TRAIN.WARMUP_EPOCHS
+    total_steps = total_epochs * num_steps_per_epoch
+    warmup_steps = warmup_epochs * num_steps_per_epoch
+
+    scheduler_type = cfg.TRAIN.SCHEDULER.lower()
+    min_lr = cfg.TRAIN.MIN_LR
+    base_lr = cfg.TRAIN.BASE_LR
+    poly_power = cfg.TRAIN.POLY_POWER
+
+    def lr_lambda(current_step):
+        if current_step < warmup_steps and warmup_steps > 0:
+            return float(current_step) / float(max(1, warmup_steps))
+        if current_step >= total_steps:
+            return min_lr / base_lr
+        progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+        progress = min(max(progress, 0.0), 1.0)
+        if scheduler_type == "cosine":
+            cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return (min_lr / base_lr) + (1.0 - min_lr / base_lr) * cosine
+        if scheduler_type == "poly":
+            poly = (1.0 - progress) ** poly_power
+            return (min_lr / base_lr) + (1.0 - min_lr / base_lr) * poly
+        return 1.0
+
+    scheduler = LambdaLR(optimizer, lr_lambda)
+    return scheduler, total_steps
 
 class Trainer(object):
     def __init__(self, args):
@@ -69,12 +146,13 @@ class Trainer(object):
             patchembed_version=config.MODEL.VSSM.PATCHEMBED,
             gmlp=config.MODEL.VSSM.GMLP,
             use_checkpoint=config.TRAIN.USE_CHECKPOINT,
+            cfg=config,
             ) 
         self.deep_model = self.deep_model.cuda()
         self.model_save_path = os.path.join(args.model_param_path, args.dataset,
                                             args.model_type + '_' + str(time.time()))
-        self.lr = args.learning_rate
-        self.epoch = args.max_iters // args.batch_size
+        self.lr = config.TRAIN.BASE_LR
+        self.epoch = config.TRAIN.EPOCHS
 
         if not os.path.exists(self.model_save_path):
             os.makedirs(self.model_save_path)
@@ -91,13 +169,10 @@ class Trainer(object):
             state_dict.update(model_dict)
             self.deep_model.load_state_dict(state_dict)
 
-        self.optim = optim.AdamW(self.deep_model.parameters(),
-                                 lr=args.learning_rate,
-                                 weight_decay=args.weight_decay)
-
-
-
-        self.scheduler = StepLR(self.optim, step_size=10000, gamma=0.5)
+        self.optim = build_optimizer(config, self.deep_model)
+        self.scheduler, self.total_steps = build_scheduler(config, self.optim, len(self.train_data_loader))
+        self.global_step = 0
+        self.ema = ModelEMA(self.deep_model, decay=config.TRAIN.EMA_DECAY) if getattr(config.TRAIN, "USE_EMA", False) else None
 
         self.evaluator = Evaluator(args.num_classes)
 
@@ -106,64 +181,73 @@ class Trainer(object):
         best_iou = 0.0
         best_round = []
         torch.cuda.empty_cache()
-        elem_num = len(self.train_data_loader)
-        train_enumerator = enumerate(self.train_data_loader)
         cfg = self.config
-        for _ in tqdm(range(elem_num)):
-            itera, data = train_enumerator.__next__()
-            imgs = data['image']
-            labels = data['label']
+        num_epochs = cfg.TRAIN.EPOCHS
 
-            imgs = imgs.cuda()
-            labels = labels.cuda().long()
+        for epoch in range(num_epochs):
+            self.deep_model.train()
+            for itera, data in enumerate(tqdm(self.train_data_loader, desc=f"Epoch {epoch+1}/{num_epochs}")):
+                imgs = data['image']
+                labels = data['label']
 
-            logits = self.deep_model(imgs)
+                imgs = imgs.cuda()
+                labels = labels.cuda().long()
 
-            self.optim.zero_grad()
+                logits = self.deep_model(imgs)
 
-            class_weights = None
-            if hasattr(cfg, "LOSS") and getattr(cfg.LOSS, "CLASS_WEIGHTS", None) is not None:
-                w = torch.tensor(cfg.LOSS.CLASS_WEIGHTS, device=logits.device, dtype=torch.float32)
-                class_weights = w
+                self.optim.zero_grad()
 
-            ce_loss = F.cross_entropy(
-                logits,
-                labels,
-                weight=class_weights,
-                ignore_index=cfg.TRAIN.IGNORE_LABEL if hasattr(cfg.TRAIN, "IGNORE_LABEL") else 255,
-            )
+                class_weights = None
+                if hasattr(cfg, "LOSS") and getattr(cfg.LOSS, "CLASS_WEIGHTS", None) is not None:
+                    w = torch.tensor(cfg.LOSS.CLASS_WEIGHTS, device=logits.device, dtype=torch.float32)
+                    class_weights = w
 
-            loss = ce_loss
-            if hasattr(cfg, "LOSS") and getattr(cfg.LOSS, "USE_LOVASZ", False):
-                prob = F.softmax(logits, dim=1)
-                lovasz = L.lovasz_softmax(
-                    prob,
+                ce_loss = F.cross_entropy(
+                    logits,
                     labels,
-                    ignore=cfg.TRAIN.IGNORE_LABEL if hasattr(cfg.TRAIN, "IGNORE_LABEL") else 255,
+                    weight=class_weights,
+                    ignore_index=cfg.TRAIN.IGNORE_LABEL if hasattr(cfg.TRAIN, "IGNORE_LABEL") else 255,
                 )
-                lambda_lovasz = getattr(cfg.LOSS, "LOVASZ_WEIGHT", 0.5)
-                loss = loss + lambda_lovasz * lovasz
 
-            loss.backward()
+                loss = ce_loss
+                if hasattr(cfg, "LOSS") and getattr(cfg.LOSS, "USE_LOVASZ", False):
+                    prob = F.softmax(logits, dim=1)
+                    lovasz = L.lovasz_softmax(
+                        prob,
+                        labels,
+                        ignore=cfg.TRAIN.IGNORE_LABEL if hasattr(cfg.TRAIN, "IGNORE_LABEL") else 255,
+                    )
+                    lambda_lovasz = getattr(cfg.LOSS, "LOVASZ_WEIGHT", 0.5)
+                    loss = loss + lambda_lovasz * lovasz
 
-            self.optim.step()
-            self.scheduler.step()
+                loss.backward()
 
-            if (itera + 1) % 10 == 0:
-                if (itera + 1) % 500 == 0:
-                    self.deep_model.eval()
-                    f1, iou, oa = self.validation()
-                    if iou > best_iou:
-                        torch.save(self.deep_model.state_dict(),
-                                   os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
-                        best_iou = iou
-                    self.deep_model.train()
+                max_norm = getattr(cfg.TRAIN, "CLIP_GRAD_NORM", 0.0)
+                if max_norm and max_norm > 0:
+                    nn_utils.clip_grad_norm_(self.deep_model.parameters(), max_norm)
+
+                self.optim.step()
+                self.scheduler.step()
+                self.global_step += 1
+
+                if self.ema is not None:
+                    self.ema.update(self.deep_model)
+
+            # validation each epoch
+            self.deep_model.eval()
+            f1, iou, oa = self.validation()
+            if iou > best_iou:
+                torch.save(self.deep_model.state_dict(),
+                           os.path.join(self.model_save_path, f'epoch{epoch + 1}_best.pth'))
+                best_iou = iou
+            self.deep_model.train()
 
         print('The accuracy of the best round is ', best_round)
 
     def validation(self):
         print('---------starting evaluation-----------')
         cfg = self.config
+        eval_model = self.ema.ema if getattr(self, "ema", None) is not None else self.deep_model
         dataset = SemanticDatasetLOVEDA(self.args.test_dataset_path, self.args.test_data_name_list, 256, mode='test', cfg=cfg)
         val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
@@ -181,9 +265,9 @@ class Trainer(object):
                 labels = labels.cuda().long()
 
                 if cfg.POSTPROCESS.ENABLE:
-                    logits = tta_logits(self.deep_model, imgs, use_tta=cfg.POSTPROCESS.TTA)
+                    logits = tta_logits(eval_model, imgs, use_tta=cfg.POSTPROCESS.TTA)
                 else:
-                    logits = self.deep_model(imgs)
+                    logits = eval_model(imgs)
 
                 prob = torch.softmax(logits, dim=1)
                 preds = torch.argmax(prob, dim=1)

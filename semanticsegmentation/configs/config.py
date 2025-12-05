@@ -115,14 +115,20 @@ _C.FUSION.USE_LEARNABLE_SCALE_WEIGHTS = False
 # -----------------------------------------------------------------------------
 _C.TRAIN = CN()
 _C.TRAIN.START_EPOCH = 0
-_C.TRAIN.EPOCHS = 300
-_C.TRAIN.WARMUP_EPOCHS = 20
-_C.TRAIN.WEIGHT_DECAY = 0.05
-_C.TRAIN.BASE_LR = 5e-4
+_C.TRAIN.EPOCHS = 80
+_C.TRAIN.WARMUP_EPOCHS = 5
+_C.TRAIN.WEIGHT_DECAY = 1e-4
+_C.TRAIN.BASE_LR = 1e-4
 _C.TRAIN.WARMUP_LR = 5e-7
-_C.TRAIN.MIN_LR = 5e-6
+_C.TRAIN.MIN_LR = 1e-6
+# Backbone vs others LR
+_C.TRAIN.BACKBONE_LR_MULT = 0.5
+# Scheduler
+_C.TRAIN.SCHEDULER = "cosine"  # options: "cosine", "poly"
+_C.TRAIN.POLY_POWER = 0.9
 # Clip gradient norm
 _C.TRAIN.CLIP_GRAD = 5.0
+_C.TRAIN.CLIP_GRAD_NORM = 1.0  # 0 disables
 # Auto resume from latest checkpoint
 _C.TRAIN.AUTO_RESUME = True
 # Gradient accumulation steps
@@ -132,6 +138,9 @@ _C.TRAIN.ACCUMULATION_STEPS = 1
 # could be overwritten by command line argument
 _C.TRAIN.USE_CHECKPOINT = False
 _C.TRAIN.IGNORE_LABEL = 255
+# EMA
+_C.TRAIN.USE_EMA = True
+_C.TRAIN.EMA_DECAY = 0.999
 
 # LR scheduler
 _C.TRAIN.LR_SCHEDULER = CN()
