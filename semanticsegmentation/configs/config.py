@@ -116,6 +116,7 @@ _C.TRAIN.ACCUMULATION_STEPS = 1
 # Whether to use gradient checkpointing to save memory
 # could be overwritten by command line argument
 _C.TRAIN.USE_CHECKPOINT = False
+_C.TRAIN.IGNORE_LABEL = 255
 
 # LR scheduler
 _C.TRAIN.LR_SCHEDULER = CN()
@@ -204,6 +205,14 @@ _C.TEST.SHUFFLE = False
 # -----------------------------------------------------------------------------
 _C.DATALOADER = CN()
 _C.DATALOADER.DOMAIN_BALANCED_SAMPLER = False
+
+# -----------------------------------------------------------------------------
+# Loss
+# -----------------------------------------------------------------------------
+_C.LOSS = CN()
+_C.LOSS.USE_LOVASZ = False
+_C.LOSS.LOVASZ_WEIGHT = 0.5
+_C.LOSS.CLASS_WEIGHTS = None
 
 # -----------------------------------------------------------------------------
 # Postprocess (inference/validation only)

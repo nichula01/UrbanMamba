@@ -17,11 +17,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from UrbanMamba.semanticsegmentation.datasets.make_data_loader import SemanticDatasetLOVEDA, make_data_loader
-from UrbanMamba.semanticsegmentation.utils_func.metrics import Evaluator
 from UrbanMamba.semanticsegmentation.models.UrbanMamba import UrbanMamba
 import UrbanMamba.semanticsegmentation.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
-from UrbanMamba.semanticsegmentation.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 from UrbanMamba.semanticsegmentation.utils_func.eval import Evaluator
 from UrbanMamba.semanticsegmentation.utils_func.postprocess import (
     tta_logits,
@@ -108,6 +106,7 @@ class Trainer(object):
         torch.cuda.empty_cache()
         elem_num = len(self.train_data_loader)
         train_enumerator = enumerate(self.train_data_loader)
+        cfg = self.config
         for _ in tqdm(range(elem_num)):
             itera, data = train_enumerator.__next__()
             imgs = data['image']
@@ -116,25 +115,39 @@ class Trainer(object):
             imgs = imgs.cuda()
             labels = labels.cuda().long()
 
-            output = self.deep_model(imgs)
+            logits = self.deep_model(imgs)
 
             self.optim.zero_grad()
 
-            ce_loss = F.cross_entropy(output, labels)
-            lovasz_loss = L.lovasz_softmax(F.softmax(outputs, dim=1), labels)
+            class_weights = None
+            if hasattr(cfg, "LOSS") and getattr(cfg.LOSS, "CLASS_WEIGHTS", None) is not None:
+                w = torch.tensor(cfg.LOSS.CLASS_WEIGHTS, device=logits.device, dtype=torch.float32)
+                class_weights = w
 
-            similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
-            
-            main_loss =  1 * (ce_loss + 0.5 * similarity_loss) + 0.5 * (lovasz_loss)
-            final_loss = main_loss
+            ce_loss = F.cross_entropy(
+                logits,
+                labels,
+                weight=class_weights,
+                ignore_index=cfg.TRAIN.IGNORE_LABEL if hasattr(cfg.TRAIN, "IGNORE_LABEL") else 255,
+            )
 
-            final_loss.backward()
+            loss = ce_loss
+            if hasattr(cfg, "LOSS") and getattr(cfg.LOSS, "USE_LOVASZ", False):
+                prob = F.softmax(logits, dim=1)
+                lovasz = L.lovasz_softmax(
+                    prob,
+                    labels,
+                    ignore=cfg.TRAIN.IGNORE_LABEL if hasattr(cfg.TRAIN, "IGNORE_LABEL") else 255,
+                )
+                lambda_lovasz = getattr(cfg.LOSS, "LOVASZ_WEIGHT", 0.5)
+                loss = loss + lambda_lovasz * lovasz
+
+            loss.backward()
 
             self.optim.step()
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + lovasz_loss_cd}, classification loss is {(ce_loss_clf_t1 + ce_loss_clf_t2 + lovasz_loss_clf_t1 + lovasz_loss_clf_t2) / 2}')
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
                     f1, iou, oa = self.validation()
