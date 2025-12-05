@@ -1,18 +1,19 @@
 """
-Wavelet Encoder for UrbanMamba.
+NSST Encoder for UrbanMamba.
 
-This module defines the `WaveletEncoder` class, which augments the
+This module defines the `NSSTEncoder` class, which augments the
 Vision Mamba backbone with a frequency‑domain pathway.  The input
-image is decomposed using a single‑level 2‑D Haar wavelet transform
-into four sub‑bands (LL, LH, HL and HH).  Each sub‑band is passed
-through an identical Vision Mamba encoder (a copy of the spatial
-encoder).  The outputs at each stage of the four encoders are
-concatenated along the channel dimension to form multi‑scale wavelet
-features.
+image is decomposed using a non‑subsampled shearlet transform (NSST)
+into four effective bands (one low‑frequency, three averaged
+high‑frequency scales).  Each band is passed through an identical
+Vision Mamba encoder (a copy of the spatial encoder).  The outputs at
+each stage of the four encoders are concatenated along the channel
+dimension to form multi‑scale frequency features.
 
-The design follows the UrbanMamba methodology and allows the network
-to capture both spatial and frequency information.  It is independent
-from the spatial encoder but shares its configuration.
+The design allows the network to capture both spatial and frequency
+information and shares configuration with the spatial encoder.  When
+`use_nsst` is False, it falls back to the previous single‑level Haar
+DWT for ablation.
 """
 
 from __future__ import annotations
@@ -27,8 +28,8 @@ from .utils_wavelet import haar_wavelet_decompose
 from .freq.nsst_utils import NSSTDecomposer, nsst_four_bands_from_rgb
 
 
-class WaveletEncoder(nn.Module):
-    """Parallel wavelet encoder built from clones of the spatial encoder.
+class NSSTEncoder(nn.Module):
+    """Parallel NSST encoder built from clones of the spatial encoder.
 
     Args:
         base_encoder (nn.Module): The spatial Vision Mamba encoder to be

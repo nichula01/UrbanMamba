@@ -19,7 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .Mamba_backbone import Backbone_VSSM
-from .WaveletEncoder import WaveletEncoder
+from .NSSTEncoder import NSSTEncoder
 from .FusionModule import FusionModule
 from .UrbanContextDecoder import UrbanContextDecoder
 from .MultiScaleFusion import MultiScaleFusion
@@ -54,7 +54,7 @@ class UrbanMamba(nn.Module):
             norm_layer=norm_layer,
             **kwargs,
         )
-        self.wavelet_encoder = WaveletEncoder(base_encoder, use_nsst=use_nsst)
+        self.wavelet_encoder = NSSTEncoder(base_encoder, use_nsst=use_nsst)
 
         # Determine per‑stage channel dimensions
         dims: List[int] = [self.spatial_encoder.dims[i] for i in self.spatial_encoder.out_indices]
