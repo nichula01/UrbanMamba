@@ -103,6 +103,14 @@ _C.FREQ.USE_NSST = True
 _C.FREQ.ENCODER_TYPE = "cnn"  # options: "cnn", "vmamba"
 
 # -----------------------------------------------------------------------------
+# Fusion settings
+# -----------------------------------------------------------------------------
+_C.FUSION = CN()
+_C.FUSION.USE_BRANCH_GATING = False
+_C.FUSION.GATE_REDUCTION = 4
+_C.FUSION.USE_LEARNABLE_SCALE_WEIGHTS = False
+
+# -----------------------------------------------------------------------------
 # Training settings
 # -----------------------------------------------------------------------------
 _C.TRAIN = CN()

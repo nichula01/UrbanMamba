@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Optional
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class DropPath(nn.Module):
     """Stochastic depth per sample (timm-style)."""
@@ -37,9 +38,12 @@ class FusionModule(nn.Module):
         act_layer: type = nn.ReLU,
         mixer: Optional[nn.Module] = None,  # e.g. VMambaBlock(out_channels)
         drop_path: float = 0.0,
+        use_branch_gating: bool = False,
+        gate_reduction: int = 4,
     ) -> None:
         super().__init__()
         C_f = out_channels
+        self.use_branch_gating = use_branch_gating
 
         # Construct activation instances; use inplace=True only if supported
         if 'inplace' in act_layer.__init__.__code__.co_varnames:
@@ -70,6 +74,13 @@ class FusionModule(nn.Module):
         self.drop_path = DropPath(drop_path)
         self.pre_norm = norm_layer(C_f)
 
+        if self.use_branch_gating:
+            hidden = max(1, C_f // gate_reduction)
+            self.s_gate_fc1 = nn.Linear(C_f, hidden)
+            self.s_gate_fc2 = nn.Linear(hidden, C_f)
+            self.f_gate_fc1 = nn.Linear(C_f, hidden)
+            self.f_gate_fc2 = nn.Linear(hidden, C_f)
+
     def forward(self, spatial_feat: torch.Tensor, wavelet_feat: torch.Tensor) -> torch.Tensor:
         if spatial_feat.shape[-2:] != wavelet_feat.shape[-2:]:
             raise ValueError(
@@ -80,6 +91,14 @@ class FusionModule(nn.Module):
         # Project to common width
         xs = self.proj_s(spatial_feat)   # [B, C_f, H, W]
         xw = self.proj_w(wavelet_feat)   # [B, C_f, H, W]
+
+        if self.use_branch_gating:
+            s_gap = xs.mean(dim=(2, 3))  # (B, C_f)
+            f_gap = xw.mean(dim=(2, 3))
+            s_gate = torch.sigmoid(self.s_gate_fc2(F.relu(self.s_gate_fc1(s_gap)))).unsqueeze(-1).unsqueeze(-1)
+            f_gate = torch.sigmoid(self.f_gate_fc2(F.relu(self.f_gate_fc1(f_gap)))).unsqueeze(-1).unsqueeze(-1)
+            xs = xs * s_gate
+            xw = xw * f_gate
 
         # Concatenate and reduce
         x = torch.cat([xs, xw], dim=1)   # [B, 2*C_f, H, W]

@@ -25,7 +25,7 @@ class MultiScaleFusion(nn.Module):
         fusion_channels (int): Channel dimension for the projected features.
     """
 
-    def __init__(self, in_channels_list: List[int], fusion_channels: int) -> None:
+    def __init__(self, in_channels_list: List[int], fusion_channels: int, use_learnable_scale_weights: bool = False) -> None:
         super().__init__()
         if not in_channels_list:
             raise ValueError("MultiScaleFusion requires at least one input feature")
@@ -34,6 +34,10 @@ class MultiScaleFusion(nn.Module):
             for c in in_channels_list
         ])
         self.alpha = nn.Parameter(torch.tensor(1.0))
+        self.use_learnable_scale_weights = use_learnable_scale_weights
+        self.num_scales = len(in_channels_list)
+        if self.use_learnable_scale_weights:
+            self.scale_weights = nn.Parameter(torch.ones(self.num_scales))
 
     def forward(self, feats: List[torch.Tensor]) -> torch.Tensor:
         if not feats:
@@ -47,7 +51,10 @@ class MultiScaleFusion(nn.Module):
             fused[i] = projected[i] + up
         # Average all fused maps upsampled to the highest resolution
         output_size = projected[0].shape[-2:]
-        out = 0
-        for i in range(n):
-            out += F.interpolate(fused[i], size=output_size, mode='bilinear', align_corners=False)
-        return out / n
+        fused_up = [F.interpolate(f, size=output_size, mode='bilinear', align_corners=False) for f in fused]
+        if self.use_learnable_scale_weights:
+            weights = F.softmax(self.scale_weights, dim=0)
+            out = sum(w * feat for w, feat in zip(weights, fused_up))
+        else:
+            out = sum(fused_up) / len(fused_up)
+        return out

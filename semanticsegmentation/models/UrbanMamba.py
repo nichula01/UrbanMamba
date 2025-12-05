@@ -83,13 +83,18 @@ class UrbanMamba(nn.Module):
             self.fusion_modules.append(FusionModule(
                 spatial_channels=c,
                 wavelet_channels=fc,
-                out_channels=c
+                out_channels=c,
+                use_branch_gating=getattr(kwargs.get("cfg", None) or type("cfg", (), {"FUSION": type("f", (), {})})(), "FUSION", getattr(type("f", (), {})(), "USE_BRANCH_GATING", False)),
             ))
 
         # Decoder and multi‑scale fusion
         self.decoder = UrbanContextDecoder(dims)
         fusion_channels = min(dims)
-        self.multi_scale_fusion = MultiScaleFusion(dims, fusion_channels)
+        self.multi_scale_fusion = MultiScaleFusion(
+            dims,
+            fusion_channels,
+            use_learnable_scale_weights=getattr(kwargs.get("cfg", None) or type("cfg", (), {"FUSION": type("f", (), {})})(), "FUSION", getattr(type("f", (), {})(), "USE_LEARNABLE_SCALE_WEIGHTS", False)),
+        )
 
         # Final classifier
         self.classifier = nn.Conv2d(fusion_channels, output_clf, kernel_size=1, bias=True)
