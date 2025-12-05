@@ -206,6 +206,24 @@ _C.DATALOADER = CN()
 _C.DATALOADER.DOMAIN_BALANCED_SAMPLER = False
 
 # -----------------------------------------------------------------------------
+# Postprocess (inference/validation only)
+# -----------------------------------------------------------------------------
+_C.POSTPROCESS = CN()
+_C.POSTPROCESS.ENABLE = False
+_C.POSTPROCESS.TTA = False
+_C.POSTPROCESS.MORPH = False
+_C.POSTPROCESS.CRF = False
+_C.POSTPROCESS.MIN_AREA = {
+    0: 0,    # Background
+    1: 32,   # Building
+    2: 16,   # Road
+    3: 64,   # Water
+    4: 64,   # Barren
+    5: 64,   # Forest
+    6: 128,  # Agricultural
+}
+
+# -----------------------------------------------------------------------------
 # Misc
 # -----------------------------------------------------------------------------
 # [SimMIM] Whether to enable pytorch amp, overwritten by command line argument

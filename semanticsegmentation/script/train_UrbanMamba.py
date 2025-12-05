@@ -23,11 +23,18 @@ import UrbanMamba.semanticsegmentation.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from UrbanMamba.semanticsegmentation.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 from UrbanMamba.semanticsegmentation.utils_func.eval import Evaluator
+from UrbanMamba.semanticsegmentation.utils_func.postprocess import (
+    tta_logits,
+    clean_mask,
+    crf_refine,
+)
+from UrbanMamba.semanticsegmentation.datasets import imutils
 
 class Trainer(object):
     def __init__(self, args):
         self.args = args
         config = get_config(args)
+        self.config = config
 
         self.train_data_loader = make_data_loader(args, config)
 
@@ -141,7 +148,8 @@ class Trainer(object):
 
     def validation(self):
         print('---------starting evaluation-----------')
-        dataset = SemanticDatasetLOVEDA(self.args.test_dataset_path, self.args.test_data_name_list, 256, mode='test', cfg=None)
+        cfg = self.config
+        dataset = SemanticDatasetLOVEDA(self.args.test_dataset_path, self.args.test_data_name_list, 256, mode='test', cfg=cfg)
         val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
 
@@ -157,18 +165,44 @@ class Trainer(object):
                 imgs = imgs.cuda()
                 labels = labels.cuda().long()
 
-                output = self.deep_model(imgs)
+                if cfg.POSTPROCESS.ENABLE:
+                    logits = tta_logits(self.deep_model, imgs, use_tta=cfg.POSTPROCESS.TTA)
+                else:
+                    logits = self.deep_model(imgs)
 
-                labels = labels.cpu().numpy()
+                prob = torch.softmax(logits, dim=1)
+                preds = torch.argmax(prob, dim=1)
 
-                preds = torch.argmax(output, dim=1).cpu().numpy()
-                self.evaluator.add_batch(pre_image=mask, gt_image=labels)
+                if cfg.POSTPROCESS.ENABLE and cfg.POSTPROCESS.MORPH:
+                    refined_list = []
+                    for b in range(preds.size(0)):
+                        refined = clean_mask(
+                            preds[b],
+                            min_areas=cfg.POSTPROCESS.MIN_AREA,
+                            apply_open_close=True,
+                        )
+                        refined_list.append(refined)
+                    preds = torch.stack(refined_list, dim=0)
 
-        iou_per_class = evaluator.Intersection_over_Union()
-        f1_per_class = evaluator.F1()
-        OA = evaluator.OA()
-        for class_name, class_iou, class_f1 in zip(config.classes, iou_per_class, f1_per_class):
-            print('mF1_{}:{}, IOU_{}:{}'.format(class_name, class_f1, class_name, class_iou))
+                if cfg.POSTPROCESS.ENABLE and cfg.POSTPROCESS.CRF:
+                    refined = []
+                    mean = torch.tensor(imutils.MEAN_RGB, device=imgs.device).view(1, 3, 1, 1)
+                    std = torch.tensor(imutils.STD_RGB, device=imgs.device).view(1, 3, 1, 1)
+                    for b in range(preds.size(0)):
+                        img_denorm = imgs[b:b+1] * std + mean
+                        img_np = img_denorm[0].permute(1, 2, 0).clamp(0, 255).byte().cpu().numpy()
+                        prob_np = prob[b].detach().cpu().numpy()
+                        crf_mask = crf_refine(img_np, prob_np)
+                        refined.append(torch.from_numpy(crf_mask).to(device=preds.device, dtype=preds.dtype))
+                    preds = torch.stack(refined, dim=0)
+
+                labels_np = labels.cpu().numpy()
+                preds_np = preds.cpu().numpy()
+                self.evaluator.add_batch(gt_image=labels_np, pre_image=preds_np)
+
+        iou_per_class = self.evaluator.Intersection_over_Union()
+        f1_per_class = self.evaluator.F1()
+        OA = self.evaluator.OA()
         print('mF1:{}, mIOU:{}, OA:{}'.format(np.nanmean(f1_per_class), np.nanmean(iou_per_class), OA))        
 
         return np.nanmean(f1_per_class), np.nanmean(iou_per_class), OA
