@@ -69,7 +69,7 @@ _C.MODEL.LABEL_SMOOTHING = 0.1
 
 # MMpretrain models for test
 _C.MODEL.MMCKPT = False
-
+#1
 # VSSM parameters
 _C.MODEL.VSSM = CN()
 _C.MODEL.VSSM.PATCH_SIZE = 4
