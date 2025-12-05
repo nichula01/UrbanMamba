@@ -38,7 +38,7 @@ class UrbanMamba(nn.Module):
     """
 
     def __init__(self, output_clf: int, pretrained: Optional[str] = None,
-                 norm_layer: str = 'ln2d', **kwargs) -> None:
+                 norm_layer: str = 'ln2d', use_nsst: bool = True, **kwargs) -> None:
         super().__init__()
         # Spatial encoder
         self.spatial_encoder = Backbone_VSSM(
@@ -54,7 +54,7 @@ class UrbanMamba(nn.Module):
             norm_layer=norm_layer,
             **kwargs,
         )
-        self.wavelet_encoder = WaveletEncoder(base_encoder)
+        self.wavelet_encoder = WaveletEncoder(base_encoder, use_nsst=use_nsst)
 
         # Determine per‑stage channel dimensions
         dims: List[int] = [self.spatial_encoder.dims[i] for i in self.spatial_encoder.out_indices]

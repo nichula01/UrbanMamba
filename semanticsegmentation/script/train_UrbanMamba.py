@@ -39,6 +39,7 @@ class Trainer(object):
         self.deep_model = UrbanMamba(
             output_clf = args.num_classes,
             pretrained=args.pretrained_weight_path,
+            use_nsst=config.FREQ.USE_NSST,
             patch_size=config.MODEL.VSSM.PATCH_SIZE, 
             in_chans=config.MODEL.VSSM.IN_CHANS, 
             num_classes=config.MODEL.NUM_CLASSES, 
