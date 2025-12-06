@@ -26,6 +26,8 @@ _C.DATA.BATCH_SIZE = 128
 _C.DATA.DATA_PATH = ''
 # Dataset name
 _C.DATA.DATASET = 'imagenet'
+# Validation crop size (eval/test). If missing in older configs, code falls back to train crop.
+_C.DATA.VAL_CROP_SIZE = 256
 # Input image size
 _C.DATA.IMG_SIZE = 224
 # Interpolation to resize image (random, bilinear, bicubic)

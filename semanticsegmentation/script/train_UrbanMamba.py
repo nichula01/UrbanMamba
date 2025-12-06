@@ -162,7 +162,12 @@ class Trainer(object):
     def validation(self):
         print('---------starting evaluation-----------')
         cfg = self.config
-        dataset = SemanticDatasetLOVEDA(self.args.test_dataset_path, self.args.test_data_name_list, 256, mode='test', cfg=cfg)
+        if hasattr(cfg.DATA, "VAL_CROP_SIZE"):
+            val_crop_size = cfg.DATA.VAL_CROP_SIZE
+        else:
+            val_crop_size = self.args.crop_size
+
+        dataset = SemanticDatasetLOVEDA(self.args.test_dataset_path, self.args.test_data_name_list, val_crop_size, mode='test', cfg=cfg)
         val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
 
