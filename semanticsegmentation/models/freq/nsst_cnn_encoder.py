@@ -10,9 +10,10 @@ class NSSTFreqEncoderCNN(nn.Module):
     NSST-based frequency encoder using a compact CNN.
 
     - RGB -> luminance -> NSST (3 scales, [4,4,8] dirs).
-    - All bands (1 LF + 4 + 4 + 8 HF) are stacked as 17 channels.
-    - A 4-stage CNN encoder produces multi-scale feature maps for fusion
-      with the RGB-VMamba encoder.
+    - All bands (1 LF + 4 + 4 + 8 HF) are stacked as 17 channels at H x W.
+    - A patch embedding downsamples to H/4 x W/4 and maps 17 -> C1.
+    - A 4-stage CNN encoder then produces feature maps aligned with VMamba:
+      f1: H/4, f2: H/8, f3: H/16, f4: H/32.
     """
 
     def __init__(
@@ -27,18 +28,25 @@ class NSSTFreqEncoderCNN(nn.Module):
 
         c1, c2, c3, c4 = out_channels_list
 
-        # Stage 1
+        # Patch embedding: (B,17,H,W) -> (B,c1,H/4,W/4)
+        self.patch_embed = nn.Sequential(
+            nn.Conv2d(in_channels, c1, kernel_size=4, stride=4, padding=0),
+            nn.BatchNorm2d(c1),
+            nn.ReLU(inplace=True),
+        )
+
+        # Stage 1 (H/4, W/4)
         self.enc1 = nn.Sequential(
-            nn.Conv2d(in_channels, c1, kernel_size=3, padding=1, stride=1),
+            nn.Conv2d(c1, c1, kernel_size=3, padding=1, stride=1),
             nn.BatchNorm2d(c1),
             nn.ReLU(inplace=True),
             nn.Conv2d(c1, c1, kernel_size=3, padding=1, stride=1),
             nn.BatchNorm2d(c1),
             nn.ReLU(inplace=True),
         )
-        self.down1 = nn.MaxPool2d(kernel_size=2, stride=2)  # H/2, W/2
+        self.down1 = nn.MaxPool2d(kernel_size=2, stride=2)  # H/8, W/8
 
-        # Stage 2
+        # Stage 2 (H/8, W/8)
         self.enc2 = nn.Sequential(
             nn.Conv2d(c1, c2, kernel_size=3, padding=1, stride=1),
             nn.BatchNorm2d(c2),
@@ -47,9 +55,9 @@ class NSSTFreqEncoderCNN(nn.Module):
             nn.BatchNorm2d(c2),
             nn.ReLU(inplace=True),
         )
-        self.down2 = nn.MaxPool2d(kernel_size=2, stride=2)  # H/4, W/4
+        self.down2 = nn.MaxPool2d(kernel_size=2, stride=2)  # H/16, W/16
 
-        # Stage 3
+        # Stage 3 (H/16, W/16)
         self.enc3 = nn.Sequential(
             nn.Conv2d(c2, c3, kernel_size=3, padding=1, stride=1),
             nn.BatchNorm2d(c3),
@@ -58,9 +66,9 @@ class NSSTFreqEncoderCNN(nn.Module):
             nn.BatchNorm2d(c3),
             nn.ReLU(inplace=True),
         )
-        self.down3 = nn.MaxPool2d(kernel_size=2, stride=2)  # H/8, W/8
+        self.down3 = nn.MaxPool2d(kernel_size=2, stride=2)  # H/32, W/32
 
-        # Stage 4 (deepest)
+        # Stage 4 (deepest, H/32, W/32)
         self.enc4 = nn.Sequential(
             nn.Conv2d(c3, c4, kernel_size=3, padding=1, stride=1),
             nn.BatchNorm2d(c4),
@@ -105,13 +113,14 @@ class NSSTFreqEncoderCNN(nn.Module):
             rgb: (B, 3, H, W) input RGB image (same as main encoder input).
         Returns:
             feats: list [f1, f2, f3, f4] of multi-scale features:
-                f1: (B, C1, H,   W)
-                f2: (B, C2, H/2, W/2)
-                f3: (B, C3, H/4, W/4)
-                f4: (B, C4, H/8, W/8)
+                f1: (B, C1, H/4,  W/4)
+                f2: (B, C2, H/8,  W/8)
+                f3: (B, C3, H/16, W/16)
+                f4: (B, C4, H/32, W/32)
         """
         x = self._nsst_stack(rgb)  # (B,17,H,W)
 
+        x = self.patch_embed(x)  # (B,c1,H/4,W/4)
         f1 = self.enc1(x)
         x = self.down1(f1)
         f2 = self.enc2(x)
